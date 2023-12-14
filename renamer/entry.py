@@ -1,39 +1,81 @@
-from pathlib import Path
+from typing import override
 
-import libcst
-from libcst import matchers
-
-class RenameTransformer(libcst.CSTTransformer):
-
-    def __init__(self, old_name, target_name):
-        self._old_name = old_name
-        self._target_name = target_name
-        self._restore_keywords = []
-
-    def _rename(self, original_node, renamed_node):
-        if original_node.value == self._old_name:
-            return renamed_node.with_changes(value=self._target_name)
-        else:
-            return renamed_node
-
-    def leave_Name(self, original_node, renamed_node):
-        return self._rename(original_node, renamed_node)
-
-    def visit_Arg(self, node):
-        if node.keyword and node.keyword.value == self._old_name:
-            self._restore_keywords.append(node.keyword.value)
-        return True
-
-    def leave_Arg(self, original_node, renamed_node):
-        try:
-            restore = self._restore_keywords.pop()
-            return renamed_node.with_changes(keyword=renamed_node.keyword.with_changes(value=restore))
-        except IndexError:
-            return renamed_node
+import libcst as cst
 
 
-def rename_variable(source_code: str, old_name: str, target_name: str) -> str:
-    rename_transformer = RenameTransformer(old_name, target_name)
-    original_tree = libcst.parse_module(source_code)
-    renamed_tree = original_tree.visit(rename_transformer)
-    return renamed_tree.code
+def _rename_any(
+    source_code: str,
+    old_name: str,
+    new_name: str,
+    rename_transformer_instance: cst.CSTTransformer,
+):
+    tree = cst.parse_module(source_code)
+    tree = tree.visit(rename_transformer_instance)
+
+    updated_code = tree.code
+
+    return updated_code
+
+
+def rename_all(source_code: str, old_name: str, new_name: str):
+    @override
+    class RenameAllTransformer(cst.CSTTransformer):
+        def leave_Name(
+            self, original_node: cst.Name, updated_node: cst.Name
+        ) -> cst.Name:
+            if original_node.value == old_name:
+                updated_node = updated_node.with_changes(value=new_name)
+            return updated_node
+
+    return _rename_any(
+        source_code=source_code,
+        old_name=old_name,
+        new_name=new_name,
+        rename_transformer_instance=RenameAllTransformer(),
+    )
+
+
+def rename_function(source_code: str, old_name: str, new_name: str):
+    @override
+    class RenameFunctionTransformer(cst.CSTTransformer):
+        def leave_FunctionDef(
+            self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef
+        ) -> cst.FunctionDef:
+            if original_node.name.value == old_name:
+                updated_node = updated_node.with_changes(
+                    name=updated_node.name.with_changes(value=new_name)
+                )
+            return updated_node
+
+    return _rename_any(
+        source_code=source_code,
+        old_name=old_name,
+        new_name=new_name,
+        rename_transformer_instance=RenameFunctionTransformer(),
+    )
+
+
+# def move_function(source_code, function_name, destination_module):
+#     tree = cst.parse_module(source_code)
+#
+#     # Find the function to be moved
+#     function_node = None
+#     for node in tree.body:
+#         if isinstance(node, cst.FunctionDef) and node.name.value == function_name:
+#             function_node = node
+#             break
+#
+#     if function_node is None:
+#         raise ValueError(f"Function '{function_name}' not found in the source code.")
+#
+#     # Remove the function from its current location
+#     tree.with_changes(body=[node for node in tree.body if node is not function_node])
+#
+#     # Add the function to the destination module
+#     destination_tree = cst.parse_module(destination_module)
+#     destination_tree.body.append(function_node)
+#
+#     # Serialize the updated CST back to source code
+#     updated_code = destination_tree.code
+#
+#     return updated_code
