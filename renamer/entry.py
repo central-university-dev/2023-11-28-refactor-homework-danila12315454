@@ -1,14 +1,13 @@
-from typing import override
+from typing import override, Optional
+import black
 
 import libcst as cst
 
 
 def _rename_any(
     source_code: str,
-    old_name: str,
-    new_name: str,
     rename_transformer_instance: cst.CSTTransformer,
-):
+) -> str:
     tree = cst.parse_module(source_code)
     tree = tree.visit(rename_transformer_instance)
 
@@ -17,7 +16,7 @@ def _rename_any(
     return updated_code
 
 
-def rename_all(source_code: str, old_name: str, new_name: str):
+def rename_all(source_code: str, old_name: str, new_name: str) -> str:
     @override
     class RenameAllTransformer(cst.CSTTransformer):
         def leave_Name(
@@ -29,13 +28,11 @@ def rename_all(source_code: str, old_name: str, new_name: str):
 
     return _rename_any(
         source_code=source_code,
-        old_name=old_name,
-        new_name=new_name,
         rename_transformer_instance=RenameAllTransformer(),
     )
 
 
-def rename_function(source_code: str, old_name: str, new_name: str):
+def rename_function(source_code: str, old_name: str, new_name: str) -> str:
     @override
     class RenameFunctionTransformer(cst.CSTTransformer):
         def leave_FunctionDef(
@@ -49,33 +46,41 @@ def rename_function(source_code: str, old_name: str, new_name: str):
 
     return _rename_any(
         source_code=source_code,
-        old_name=old_name,
-        new_name=new_name,
         rename_transformer_instance=RenameFunctionTransformer(),
     )
 
 
-# def move_function(source_code, function_name, destination_module):
-#     tree = cst.parse_module(source_code)
-#
-#     # Find the function to be moved
-#     function_node = None
-#     for node in tree.body:
-#         if isinstance(node, cst.FunctionDef) and node.name.value == function_name:
-#             function_node = node
-#             break
-#
-#     if function_node is None:
-#         raise ValueError(f"Function '{function_name}' not found in the source code.")
-#
-#     # Remove the function from its current location
-#     tree.with_changes(body=[node for node in tree.body if node is not function_node])
-#
-#     # Add the function to the destination module
-#     destination_tree = cst.parse_module(destination_module)
-#     destination_tree.body.append(function_node)
-#
-#     # Serialize the updated CST back to source code
-#     updated_code = destination_tree.code
-#
-#     return updated_code
+def _get_function_node(function_name: str, code_tree: cst.Module) -> cst.FunctionDef:
+    function_node = None
+    for node in code_tree.body:
+        if isinstance(node, cst.FunctionDef) and node.name.value == function_name:
+            function_node = node
+            break
+
+    if function_node is None:
+        raise ValueError(f"Function '{function_name}' not found in the source code.")
+    return function_node
+
+
+def move_function(
+    function_name: str, from_code: str, destination_code: str
+) -> tuple[str, str]:
+    tree = cst.parse_module(from_code)
+
+    function_node = _get_function_node(function_name=function_name, code_tree=tree)
+
+    tree = tree.with_changes(
+        body=[node for node in tree.body if node is not function_node]
+    )
+
+    destination_tree = cst.parse_module(destination_code)
+    destination_tree = destination_tree.with_changes(
+        body=tuple([*destination_tree.body, function_node])
+    )
+
+    updated_from_code = black.format_str(tree.code, mode=black.FileMode())
+    updated_destination_code = black.format_str(
+        destination_tree.code, mode=black.FileMode()
+    )
+
+    return updated_from_code, updated_destination_code

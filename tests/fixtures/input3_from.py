@@ -8,6 +8,3 @@ class TestClass:
 
     def print(self):
         ...
-
-    def function(self):
-        ...

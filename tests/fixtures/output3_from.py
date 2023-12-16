@@ -1,0 +1,6 @@
+class TestClass:
+    def __int__(self):
+        ...
+
+    def print(self):
+        ...

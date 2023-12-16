@@ -1,6 +1,8 @@
 from pathlib import Path
 
-from renamer.entry import rename_all, rename_function
+import pytest
+
+from renamer.entry import rename_all, rename_function, move_function
 
 
 def get_codes(test_postfix: str) -> tuple[str, str]:
@@ -54,3 +56,37 @@ def test_rename_function(codes: tuple[str, str] = get_codes("2")):
     )
 
     assert got == expected_code
+
+
+def test_move_function(
+    from_codes: tuple[str, str] = get_codes("3_from"),
+    destination_codes: tuple[str, str] = get_codes("3_destination"),
+) -> None:
+    from_code_input, from_code_expected = from_codes
+    destination_code_input, destination_code_expected = destination_codes
+
+    from_code_got, destination_code_got = move_function(
+        function_name="func",
+        from_code=from_code_input,
+        destination_code=destination_code_input,
+    )
+
+    assert (
+        from_code_got == from_code_expected
+        and destination_code_got == destination_code_expected
+    )
+
+
+def test_move_function_exception(
+    from_codes: tuple[str, str] = get_codes("3_from"),
+    destination_codes: tuple[str, str] = get_codes("3_destination"),
+) -> None:
+    from_code_input, from_code_expected = from_codes
+    destination_code_input, destination_code_expected = destination_codes
+
+    with pytest.raises(ValueError):
+        from_code_got, destination_code_got = move_function(
+            function_name="func1",
+            from_code=from_code_input,
+            destination_code=destination_code_input,
+        )
