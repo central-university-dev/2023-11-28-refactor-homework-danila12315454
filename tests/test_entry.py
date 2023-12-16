@@ -2,7 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from renamer.entry import rename_all, rename_function, move_function
+from renamer.entry import (
+    rename_all,
+    rename_function,
+    move_function_between_files,
+)
 
 
 def get_codes(test_postfix: str) -> tuple[str, str]:
@@ -58,35 +62,27 @@ def test_rename_function(codes: tuple[str, str] = get_codes("2")):
     assert got == expected_code
 
 
-def test_move_function(
-    from_codes: tuple[str, str] = get_codes("3_from"),
-    destination_codes: tuple[str, str] = get_codes("3_destination"),
-) -> None:
-    from_code_input, from_code_expected = from_codes
-    destination_code_input, destination_code_expected = destination_codes
-
-    from_code_got, destination_code_got = move_function(
+def test_move_function_between_files() -> None:
+    output_from_code = Path(__file__).parent / "fixtures" / "output3_from.py"
+    output_destination_code = (
+        Path(__file__).parent / "fixtures" / "output3_destination.py"
+    )
+    from_code_got, destination_code_got = move_function_between_files(
         function_name="func",
-        from_code=from_code_input,
-        destination_code=destination_code_input,
+        source_path=Path(__file__).parent / "fixtures" / "input3_from.py",
+        destination_path=Path(__file__).parent / "fixtures" / "input3_destination.py",
     )
 
     assert (
-        from_code_got == from_code_expected
-        and destination_code_got == destination_code_expected
+        from_code_got == output_from_code.read_text()
+        and destination_code_got == output_destination_code.read_text()
     )
 
 
-def test_move_function_exception(
-    from_codes: tuple[str, str] = get_codes("3_from"),
-    destination_codes: tuple[str, str] = get_codes("3_destination"),
-) -> None:
-    from_code_input, from_code_expected = from_codes
-    destination_code_input, destination_code_expected = destination_codes
-
+def test_move_function_between_files_exception() -> None:
     with pytest.raises(ValueError):
-        from_code_got, destination_code_got = move_function(
+        from_code_got, destination_code_got = move_function_between_files(
             function_name="func1",
-            from_code=from_code_input,
-            destination_code=destination_code_input,
+            source_path=Path(__file__).parent / "fixtures" / "input3_from.py",
+            destination_path=Path(__file__).parent / "fixtures" / "input3_destination.py",
         )

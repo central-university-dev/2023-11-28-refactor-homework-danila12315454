@@ -1,6 +1,9 @@
 from typing import override, Optional
 import black
-
+from pathlib import Path
+from libcst import parse_module
+from libcst.metadata import PositionProvider, CodePosition
+from libcst import Module, Import, ImportFrom, ImportAlias
 import libcst as cst
 
 
@@ -62,23 +65,32 @@ def _get_function_node(function_name: str, code_tree: cst.Module) -> cst.Functio
     return function_node
 
 
-def move_function(
-    function_name: str, from_code: str, destination_code: str
+def move_function_between_files(
+    source_path: Path, destination_path: Path, function_name: str
 ) -> tuple[str, str]:
-    tree = cst.parse_module(from_code)
+    source_tree = parse_module(source_path.read_text())
 
-    function_node = _get_function_node(function_name=function_name, code_tree=tree)
+    function_node = _get_function_node(
+        function_name=function_name, code_tree=source_tree
+    )
+    source_tree = source_tree.deep_remove(function_node)
 
-    tree = tree.with_changes(
-        body=[node for node in tree.body if node is not function_node]
+    destination_tree = parse_module(destination_path.read_text())
+
+    import_statement = ImportFrom(
+        module=cst.Name(destination_path.stem),
+        names=[ImportAlias(name=function_node.name, asname=None)],
     )
 
-    destination_tree = cst.parse_module(destination_code)
     destination_tree = destination_tree.with_changes(
         body=tuple([*destination_tree.body, function_node])
     )
 
-    updated_from_code = black.format_str(tree.code, mode=black.FileMode())
+    source_tree = source_tree.with_changes(
+        body=tuple([import_statement, *source_tree.body])
+    )
+
+    updated_from_code = black.format_str(source_tree.code, mode=black.FileMode())
     updated_destination_code = black.format_str(
         destination_tree.code, mode=black.FileMode()
     )
